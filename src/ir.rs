@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    arm64::{self, Asm},
-    util::{Iota, RegisterAllocator},
+    arm64::Asm,
+    util::Iota,
 };
 
 pub struct Module {

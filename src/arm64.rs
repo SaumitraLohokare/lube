@@ -375,6 +375,7 @@ impl fmt::Display for Register {
 }
 
 #[rustfmt::skip]
+#[allow(unused)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RegisterNumber {
     R0,  R1,  R2,  R3,  R4,  R5,  R6,  R7,
