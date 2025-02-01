@@ -51,8 +51,10 @@ impl Asm {
         stack_slot_offsets: &HashMap<ir::StackSlot, u16>,
     ) {
         // .global proc_name
-        self.instructions
-            .push(Instruction::custom(format!(".global {}", proc.name())));
+        if proc.is_public() {
+            self.instructions
+                .push(Instruction::custom(format!(".global {}", proc.name())));
+        }
 
         // .align 2
         self.instructions
@@ -64,11 +66,13 @@ impl Asm {
 
         // sub sp, stack size
         let stack_size = proc.stack_size();
-        self.instructions.push(Instruction::sub_imm(
-            Register::sp(),
-            Register::sp(),
-            stack_size,
-        ));
+        if stack_size != 0 {
+            self.instructions.push(Instruction::sub_imm(
+                Register::sp(),
+                Register::sp(),
+                stack_size,
+            ));
+        }
 
         // TODO: Store x29, x30 if needed
 
@@ -94,11 +98,13 @@ impl Asm {
 
         // add sp, stack size
         let stack_size = proc.stack_size();
-        self.instructions.push(Instruction::add_imm(
-            Register::sp(),
-            Register::sp(),
-            stack_size,
-        ));
+        if stack_size != 0 {
+            self.instructions.push(Instruction::add_imm(
+                Register::sp(),
+                Register::sp(),
+                stack_size,
+            ));
+        }
 
         // TODO: Load x29, x30 if needed
 
@@ -301,8 +307,18 @@ impl fmt::Display for Instruction {
             Instruction::Add { dest, src_1, src_2 }     => write!(f, "    add {dest}, {src_1}, {src_2}"),
             Instruction::AddImm { dest, src_1, src_2 }  => write!(f, "    add {dest}, {src_1}, #{src_2}"),
             Instruction::SubImm { dest, src_1, src_2 }  => write!(f, "    sub {dest}, {src_1}, #{src_2}"),
-            Instruction::Ldr { dest, addr, offset }     => write!(f, "    ldr {dest}, [{addr}, #{offset}]"),
-            Instruction::Str { src, addr, offset }      => write!(f, "    str {src}, [{addr}, #{offset}]"),
+            Instruction::Ldr { dest, addr, offset }     => 
+                if *offset != 0 {
+                    write!(f, "    ldr {dest}, [{addr}, #{offset}]")
+                } else {
+                    write!(f, "    ldr {dest}, [{addr}]")
+                }
+            Instruction::Str { src, addr, offset }      => 
+                if *offset != 0 {
+                    write!(f, "    str {src}, [{addr}, #{offset}]")
+                } else {
+                    write!(f, "    str {src}, [{addr}]")
+                }
             Instruction::Br { label }                   => write!(f, "    b label_{}", label.id()),
             Instruction::Ret                            => write!(f, "    ret"),
         }
