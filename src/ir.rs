@@ -155,6 +155,11 @@ impl Procedure {
             stack_size += slot_size;
         }
 
+        // Align stack to 16 bytes
+        while stack_size % 16 != 0 {
+            stack_size += 1;
+        }
+        
         stack_size
     }
 }
