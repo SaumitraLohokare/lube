@@ -24,48 +24,48 @@ impl Asm {
     pub(crate) fn from_module(module: &mut ir::Module) -> Self {
         let mut asm = Self::new();
 
-        for proc in module.procs_cloned() {
+        for func in module.funcs_cloned() {
             let reg_map =
-                RegisterAllocator::new().allocate(proc.instructions(), usable_registers());
+                RegisterAllocator::new().allocate(func.instructions(), usable_registers());
 
-            let offsets = proc.generate_stack_slot_offsets();
+            let offsets = func.generate_stack_slot_offsets();
             let return_label = module.next_label();
 
-            // Proc prologue
-            asm.generate_proc_prologue(&proc, &offsets);
+            // func prologue
+            asm.generate_func_prologue(&func, &offsets);
 
-            for inst in proc.instructions() {
+            for inst in func.instructions() {
                 asm.add_inst(*inst, &reg_map, &offsets, return_label);
             }
 
-            // Proc epilogue
-            asm.generate_proc_epilogue(&proc, return_label);
+            // func epilogue
+            asm.generate_func_epilogue(&func, return_label);
         }
 
         asm
     }
 
-    fn generate_proc_prologue(
+    fn generate_func_prologue(
         &mut self,
-        proc: &ir::Procedure,
+        func: &ir::Function,
         stack_slot_offsets: &HashMap<ir::StackSlot, u16>,
     ) {
-        // .global proc_name
-        if proc.is_public() {
+        // .global func_name
+        if func.is_public() {
             self.instructions
-                .push(Instruction::custom(format!(".global {}", proc.name())));
+                .push(Instruction::custom(format!(".global {}", func.name())));
         }
 
         // .align 2
         self.instructions
             .push(Instruction::custom(".align 2".to_string()));
 
-        // proc_name:
+        // func_name:
         self.instructions
-            .push(Instruction::custom(format!("{}:", proc.name())));
+            .push(Instruction::custom(format!("{}:", func.name())));
 
         // sub sp, stack size
-        let stack_size = proc.stack_size();
+        let stack_size = func.stack_size();
         if stack_size != 0 {
             self.instructions.push(Instruction::sub_imm(
                 Register::sp(),
@@ -79,7 +79,7 @@ impl Asm {
         // Store args in stack slots
         let mut arg_num = 0;
         #[allow(clippy::explicit_counter_loop)]
-        for arg in proc.args() {
+        for arg in func.args() {
             let offset = stack_slot_offsets.get(arg).unwrap();
             if let Some(arg_reg) = arg_register(arg_num) {
                 self.instructions
@@ -92,12 +92,12 @@ impl Asm {
         }
     }
 
-    fn generate_proc_epilogue(&mut self, proc: &ir::Procedure, return_label: ir::Label) {
+    fn generate_func_epilogue(&mut self, func: &ir::Function, return_label: ir::Label) {
         // return_label:
         self.instructions.push(Instruction::label(return_label));
 
         // add sp, stack size
-        let stack_size = proc.stack_size();
+        let stack_size = func.stack_size();
         if stack_size != 0 {
             self.instructions.push(Instruction::add_imm(
                 Register::sp(),

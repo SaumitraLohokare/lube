@@ -7,28 +7,28 @@ use crate::{
 
 pub struct Module {
     lbl_iota: Iota,
-    procs: Vec<Procedure>,
+    funcs: Vec<Function>,
 }
 
 impl Module {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            procs: Vec::new(),
+            funcs: Vec::new(),
             lbl_iota: Iota::new(),
         }
     }
 
-    pub fn add_proc(&mut self, proc: Procedure) {
-        self.procs.push(proc);
+    pub fn add_func(&mut self, func: Function) {
+        self.funcs.push(func);
     }
 
     pub fn generate_asm(&mut self) -> Asm {
         Asm::from_module(self)
     }
 
-    pub(crate) fn procs_cloned(&self) -> Vec<Procedure> {
-        self.procs.clone()
+    pub(crate) fn funcs_cloned(&self) -> Vec<Function> {
+        self.funcs.clone()
     }
 
     pub(crate) fn next_label(&mut self) -> Label {
@@ -37,7 +37,7 @@ impl Module {
 }
 
 #[derive(Clone)]
-pub struct Procedure {
+pub struct Function {
     is_public: bool,
     name: String,
     tmp_iota: Iota,
@@ -47,7 +47,7 @@ pub struct Procedure {
     instructions: Vec<Instruction>,
 }
 
-impl Procedure {
+impl Function {
     pub fn new(name: String) -> Self {
         Self {
             is_public: false,
