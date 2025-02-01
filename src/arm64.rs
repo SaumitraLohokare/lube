@@ -74,6 +74,7 @@ impl Asm {
 
         // Store args in stack slots
         let mut arg_num = 0;
+        #[allow(clippy::explicit_counter_loop)]
         for arg in proc.args() {
             let offset = stack_slot_offsets.get(arg).unwrap();
             if let Some(arg_reg) = arg_register(arg_num) {

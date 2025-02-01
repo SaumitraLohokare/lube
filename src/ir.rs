@@ -11,6 +11,7 @@ pub struct Module {
 }
 
 impl Module {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             procs: Vec::new(),
@@ -224,7 +225,7 @@ impl Value {
             Value::U8(x) => x as u64,
             Value::U16(x) => x as u64,
             Value::U32(x) => x as u64,
-            Value::U64(x) => x as u64,
+            Value::U64(x) => x,
             Value::I8(x) => x as u64,
             Value::I16(x) => x as u64,
             Value::I32(x) => x as u64,

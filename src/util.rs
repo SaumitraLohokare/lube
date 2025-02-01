@@ -35,9 +35,7 @@ impl RegisterAllocator {
     }
 
     fn add_edge(&mut self, from: ir::Temporary, to: &HashSet<ir::Temporary>) {
-        if !self.edges.contains_key(&from) {
-            self.edges.insert(from, Vec::new());
-        }
+        self.edges.entry(from).or_default();
 
         for node in to {
             if !self.edges.contains_key(node) {
@@ -50,7 +48,7 @@ impl RegisterAllocator {
         }
     }
 
-    fn generate_edges(&mut self, ir: &Vec<ir::Instruction>) {
+    fn generate_edges(&mut self, ir: &[ir::Instruction]) {
         let mut alive_set = HashSet::new();
 
         for inst in ir.iter().rev() {
@@ -102,7 +100,7 @@ impl RegisterAllocator {
 
     pub(crate) fn allocate(
         mut self,
-        ir: &Vec<ir::Instruction>,
+        ir: &[ir::Instruction],
         regs: Vec<arm64::RegisterNumber>,
     ) -> HashMap<ir::Temporary, arm64::Register> {
         self.generate_edges(ir);
