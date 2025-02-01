@@ -136,7 +136,7 @@ impl Asm {
             ir::Instruction::Return { src } => {
                 let src_reg = reg_map.get(&src).unwrap();
 
-                let inst = Instruction::mov(Register::x0(), *src_reg);
+                let inst = Instruction::mov(Register::r0(src_reg.size()), *src_reg);
                 self.instructions.push(inst);
 
                 let inst = Instruction::br(return_label);
@@ -324,9 +324,17 @@ impl Register {
         self.number
     }
 
+    fn size(&self) -> Size {
+        self.size
+    }
+
     fn sp() -> Self {
         Self::new(RegisterNumber::SP, Size::QuadWord)
     }
+
+    fn r0(size: Size) -> Self {
+        Self::new(RegisterNumber::R0, size)
+    } 
 
     fn x0() -> Self {
         Self::new(RegisterNumber::R0, Size::QuadWord)
