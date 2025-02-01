@@ -85,7 +85,14 @@ impl Asm {
                 self.instructions
                     .push(Instruction::str(arg_reg, Register::sp(), *offset));
             } else {
-                unimplemented!()
+                self.instructions
+                    .push(Instruction::ldr(
+                        Register::x9(), 
+                        Register::sp(), 
+                        stack_size + ((arg_num as u16 - 8) * arg.size().in_bytes()))
+                    );
+                self.instructions
+                    .push(Instruction::str(Register::x9(), Register::sp(), *offset));
             }
 
             arg_num += 1;
@@ -140,10 +147,12 @@ impl Asm {
                 self.instructions.push(inst);
             }
             ir::Instruction::Return { src } => {
-                let src_reg = reg_map.get(&src).unwrap();
-
-                let inst = Instruction::mov(Register::r0(src_reg.size()), *src_reg);
-                self.instructions.push(inst);
+                if let Some(src) = src {
+                    let src_reg = reg_map.get(&src).unwrap();
+    
+                    let inst = Instruction::mov(Register::r0(src_reg.size()), *src_reg);
+                    self.instructions.push(inst);
+                }
 
                 let inst = Instruction::br(return_label);
                 self.instructions.push(inst);
@@ -382,6 +391,10 @@ impl Register {
 
     fn x7() -> Self {
         Self::new(RegisterNumber::R7, Size::QuadWord)
+    }
+
+    fn x9() -> Self {
+        Self::new(RegisterNumber::R9, Size::QuadWord)
     }
 }
 

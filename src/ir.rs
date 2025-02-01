@@ -100,7 +100,7 @@ impl Function {
         result
     }
 
-    pub fn add_inst_return(&mut self, tmp: Temporary) {
+    pub fn add_inst_return(&mut self, tmp: Option<Temporary>) {
         let inst = Instruction::Return { src: tmp };
         self.instructions.push(inst);
     }
@@ -135,17 +135,17 @@ impl Function {
 
     pub(crate) fn generate_stack_slot_offsets(&self) -> HashMap<StackSlot, u16> {
         let mut stack_slot_offsets = HashMap::new();
-        let mut current_offset = 0;
+        let mut current_offset = self.stack_size();
 
         for slot in &self.stack_slots {
             let slot_size = slot.size().in_bytes();
             // round up current offset to nearest slot_size
             while current_offset % slot_size != 0 {
-                current_offset += 1;
+                current_offset -= 1;
             }
 
+            current_offset -= slot_size;
             stack_slot_offsets.insert(*slot, current_offset);
-            current_offset += slot_size;
         }
 
         stack_slot_offsets
@@ -199,7 +199,7 @@ pub enum Size {
 }
 
 impl Size {
-    fn in_bytes(self) -> u16 {
+    pub(crate) fn in_bytes(self) -> u16 {
         match self {
             Size::Byte => 1,
             Size::Word => 2,
@@ -253,7 +253,7 @@ impl Value {
 #[derive(Clone, Copy)]
 pub(crate) enum Instruction {
     Set { dest: Temporary, src: Value },
-    Return { src: Temporary },
+    Return { src: Option<Temporary> },
     Load { dest: Temporary, src: StackSlot },
     Add { dest: Temporary, src_1: Temporary, src_2: Temporary },
 }
@@ -269,7 +269,7 @@ impl StackSlot {
         Self { id, size }
     }
 
-    fn size(self) -> Size {
+    pub(crate) fn size(self) -> Size {
         self.size
     }
 }

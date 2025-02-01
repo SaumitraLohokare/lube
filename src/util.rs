@@ -58,7 +58,9 @@ impl RegisterAllocator {
                     self.add_edge(*dest, &alive_set);
                 }
                 ir::Instruction::Return { src } => {
-                    alive_set.insert(*src);
+                    if let Some(src) = src {
+                        alive_set.insert(*src);
+                    }
                 }
                 ir::Instruction::Load { dest, .. } => {
                     alive_set.remove(dest);
