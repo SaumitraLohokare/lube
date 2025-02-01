@@ -38,6 +38,7 @@ impl Module {
 
 #[derive(Clone)]
 pub struct Procedure {
+    is_public: bool,
     name: String,
     tmp_iota: Iota,
     var_iota: Iota,
@@ -49,6 +50,7 @@ pub struct Procedure {
 impl Procedure {
     pub fn new(name: String) -> Self {
         Self {
+            is_public: false,
             name,
             tmp_iota: Iota::new(),
             var_iota: Iota::new(),
@@ -56,6 +58,14 @@ impl Procedure {
             stack_slots: Vec::new(),
             instructions: Vec::new(),
         }
+    }
+
+    pub fn make_public(&mut self) {
+        self.is_public = true;
+    }
+
+    pub(crate) fn is_public(&self) -> bool {
+        self.is_public
     }
 
     pub(crate) fn name(&self) -> &str {
