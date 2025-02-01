@@ -19,7 +19,7 @@ fn main() -> io::Result<()> {
 
     let mut module = Module::new();
 
-    let mut proc = Procedure::new("deepThink".to_string());
+    let mut proc = Procedure::new("_deepThink".to_string());
 
     let tmp_1 = proc.add_inst_set(Value::I32(42));
     proc.add_inst_return(tmp_1);
@@ -46,7 +46,7 @@ fn main() -> io::Result<()> {
 
     let mut module = Module::new();
 
-    let mut proc = Procedure::new("add".to_string());
+    let mut proc = Procedure::new("_add".to_string());
 
     let arg_0 = proc.add_arg(Size::DoubleWord);
     let arg_1 = proc.add_arg(Size::DoubleWord);
