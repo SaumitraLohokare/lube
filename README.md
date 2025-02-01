@@ -22,12 +22,13 @@ fn main() -> io::Result<()> {
 
     let mut module = Module::new();
 
-    let mut proc = Procedure::new("_deepThink".to_string());
+    let mut func = Function::new("_deepThink".to_string());
+    func.make_public();
 
-    let tmp_1 = proc.add_inst_set(Value::I32(42));
-    proc.add_inst_return(tmp_1);
+    let tmp_1 = func.add_inst_set(Value::I32(42));
+    func.add_inst_return(tmp_1);
 
-    module.add_proc(proc);
+    module.add_func(func);
 
     module.generate_asm().save_to("deepThink.s")?;
 
@@ -49,17 +50,18 @@ fn main() -> io::Result<()> {
 
     let mut module = Module::new();
 
-    let mut proc = Procedure::new("_add".to_string());
+    let mut func = Function::new("_add".to_string());
+    func.make_public();
 
-    let arg_0 = proc.add_arg(Size::DoubleWord);
-    let arg_1 = proc.add_arg(Size::DoubleWord);
+    let arg_0 = func.add_arg(Size::DoubleWord);
+    let arg_1 = func.add_arg(Size::DoubleWord);
 
-    let tmp_0 = proc.add_inst_load(arg_0);
-    let tmp_1 = proc.add_inst_load(arg_1);
-    let tmp_2 = proc.add_inst_add(tmp_0, tmp_1);
-    proc.add_inst_return(tmp_2);
+    let tmp_0 = func.add_inst_load(arg_0);
+    let tmp_1 = func.add_inst_load(arg_1);
+    let tmp_2 = func.add_inst_add(tmp_0, tmp_1);
+    func.add_inst_return(tmp_2);
 
-    module.add_proc(proc);
+    module.add_func(func);
 
     module.generate_asm().save_to("add.s")?;
 
