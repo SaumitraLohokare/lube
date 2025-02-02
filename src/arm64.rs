@@ -202,6 +202,7 @@ impl Asm {
             ir::Instruction::Call { func, args } => {
                 // Store args in correct registers/stack
                 let mut arg_num = 0;
+                let mut additional_args_offset = 0;
                 #[allow(clippy::explicit_counter_loop)]
                 for arg in args {
                     let value_reg = reg_map.get(arg).unwrap();
@@ -209,8 +210,9 @@ impl Asm {
                         let inst = Instruction::mov(arg_reg, *value_reg);
                         self.instructions.push(inst);
                     } else {
-                        // (arg_num - 8)
-                        unimplemented!()
+                        let inst = Instruction::str(*value_reg, Register::sp(), additional_args_offset);
+                        self.instructions.push(inst);
+                        additional_args_offset += arg.size().in_bytes();
                     }
 
                     arg_num += 1;
