@@ -27,7 +27,7 @@ fn main() -> io::Result<()> {
 
     module.add_func(func);
 
-    module.generate_asm().save_to("deepThink.s")?;
+    module.generate_asm().save_to(".build/deepThink.s")?;
 
     /*
 
@@ -60,7 +60,7 @@ fn main() -> io::Result<()> {
 
     module.add_func(func);
 
-    module.generate_asm().save_to("add.s")?;
+    module.generate_asm().save_to(".build/add.s")?;
 
     /*
     
@@ -94,7 +94,7 @@ fn main() -> io::Result<()> {
 
     module.add_func(func);
 
-    module.generate_asm().save_to("why_would_you_do_this.s")?;
+    module.generate_asm().save_to(".build/why_would_you_do_this.s")?;
 
     /*
     
@@ -135,7 +135,7 @@ fn main() -> io::Result<()> {
 
     module.add_func(func);
 
-    module.generate_asm().save_to("variables.s")?;
+    module.generate_asm().save_to(".build/variables.s")?;
 
     /*
     
@@ -173,7 +173,7 @@ fn main() -> io::Result<()> {
 
     module.add_func(func);
 
-    module.generate_asm().save_to("signed_add.s")?;
+    module.generate_asm().save_to(".build/signed_add.s")?;
     
     /*
 
@@ -238,7 +238,7 @@ fn main() -> io::Result<()> {
 
     module.add_func(func_2);
 
-    module.generate_asm().save_to("func_call.s")?;
+    module.generate_asm().save_to(".build/func_call.s")?;
 
 
     Ok(())
