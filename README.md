@@ -2,6 +2,14 @@
 
 A Little Useful Back End for making compilers.
 
+## Support
+
+| Architecture | Supported |
+|--------------|-----------|
+| Aarch64      |    ✅    |
+| x86_64       |    ❌    |
+
+
 ## Examples
 
 ```rs
