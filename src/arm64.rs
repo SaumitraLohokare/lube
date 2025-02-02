@@ -443,7 +443,7 @@ impl fmt::Display for Instruction {
                 match dest.size() {
                     Size::Byte       => write!(f, "    ldr{}b {dest}, ", if *signed { "s" } else { "" }),
                     Size::Word       => write!(f, "    ldr{}h {dest}, ", if *signed { "s" } else { "" }),
-                    Size::DoubleWord => write!(f, "    ldr{} {dest}, ", if *signed { "sw" } else { "" }),
+                    Size::DoubleWord => write!(f, "    ldr {dest}, "), // TODO: If we need to load 32 bit signed to 64 bit signed use ldrsw
                     Size::QuadWord   => write!(f, "    ldr {dest}, "),
                 }?;
 

@@ -183,7 +183,7 @@ fn main() -> io::Result<()> {
     
         int main(void) {
             int a = 2;
-            int b = -2;
+            int b = -1;
             return add(a, b);
         }
 
@@ -198,7 +198,7 @@ fn main() -> io::Result<()> {
         main:
             %0 = 2
             $0 = %0
-            %1 = -2
+            %1 = -1
             $1 = %1
             %2 = $0
             %3 = $1
@@ -228,7 +228,7 @@ fn main() -> io::Result<()> {
 
     let tmp_0 = func_2.add_inst_set(Value::I32(2));
     let var_0 = func_2.add_inst_store(tmp_0);
-    let tmp_1 = func_2.add_inst_set(Value::I32(-2));
+    let tmp_1 = func_2.add_inst_set(Value::I32(-1));
     let var_1 = func_2.add_inst_store(tmp_1);
     let tmp_2 = func_2.add_inst_load(var_0);
     let tmp_3 = func_2.add_inst_load(var_1);
