@@ -4,9 +4,9 @@ _add:
     sub sp, sp, #16
     str w0, [sp, #12]
     str w1, [sp, #8]
-    ldr w8, [sp, #12]
-    ldr w10, [sp, #8]
-    add w9, w8, w10
+    ldr w10, [sp, #12]
+    ldr w8, [sp, #8]
+    add w9, w10, w8
     mov w0, w9
     b label_0
 label_0:
@@ -24,10 +24,10 @@ _main:
     mov w8, #65535
     movk w8, #65535, lsl #16
     str w8, [sp, #8]
-    ldr w9, [sp, #12]
-    ldr w8, [sp, #8]
-    mov w0, w9
-    mov w1, w8
+    ldr w8, [sp, #12]
+    ldr w9, [sp, #8]
+    mov w0, w8
+    mov w1, w9
     bl _add
     mov w8, w0
     mov w0, w8
