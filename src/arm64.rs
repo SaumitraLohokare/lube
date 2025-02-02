@@ -81,8 +81,8 @@ impl Asm {
 
         // Store x29, x30 if needed
         if !func.is_leaf() {
-            // stp x29, x30, [sp, #16]
-            let inst = Instruction::stp(Register::x29(), Register::x30(), Register::sp(), 16);
+            // stp x29, x30, [sp, stack size]
+            let inst = Instruction::stp(Register::x29(), Register::x30(), Register::sp(), stack_size);
             self.instructions.push(inst);
 
             // add x29, sp, stack size
@@ -107,7 +107,7 @@ impl Asm {
                 self.instructions.push(Instruction::ldr(
                     Register::r9(arg.size()),
                     Register::sp(),
-                    func_stack_size + additional_args_offset, // TODO: Update according to func_is_leaf
+                    func_stack_size + additional_args_offset,
                     arg.is_signed(),
                 ));
 
@@ -125,14 +125,15 @@ impl Asm {
     }
 
     fn generate_func_epilogue(&mut self, func: &ir::Function, return_label: ir::Label) {
+        let stack_size = func.stack_size();
+        
         // return_label:
         self.instructions.push(Instruction::label(return_label));
 
         // Load x29, x30 if needed
         if !func.is_leaf() {
-            // ldp x29, x30, [sp, #16]
-            // TODO: calculate correct location to store x29 x30
-            let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), 16);
+            // ldp x29, x30, [sp, stack size]
+            let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), stack_size);
             self.instructions.push(inst);
         }
 
