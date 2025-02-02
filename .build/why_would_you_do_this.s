@@ -1,20 +1,20 @@
 .align 2
 _why_would_you_do_this:
-    sub sp, sp, #48
-    str w0, [sp, #44]
-    str w1, [sp, #40]
-    str w2, [sp, #36]
-    str w3, [sp, #32]
-    str w4, [sp, #28]
-    str w5, [sp, #24]
-    str w6, [sp, #20]
-    str w7, [sp, #16]
-    ldr w9, [sp, #48]
-    str w9, [sp, #12]
-    ldr w9, [sp, #52]
-    str w9, [sp, #8]
+    sub sp, sp, #64
+    strh w0, [sp, #62]
+    str w1, [sp, #56]
+    str x2, [sp, #48]
+    strh w3, [sp, #46]
+    str w4, [sp, #40]
+    str x5, [sp, #32]
+    strh w6, [sp, #30]
+    str w7, [sp, #24]
+    ldr x9, [sp, #64]
+    str x9, [sp, #16]
+    ldrsh w9, [sp, #72]
+    strh w9, [sp, #14]
     b label_0
 label_0:
-    add sp, sp, #48
+    add sp, sp, #64
     ret
 
