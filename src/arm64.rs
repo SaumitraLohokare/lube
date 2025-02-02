@@ -92,6 +92,7 @@ impl Asm {
 
         // Store args in stack slots
         let mut arg_num = 0;
+        let mut additional_args_offset = 0;
         #[allow(clippy::explicit_counter_loop)]
         for arg in func.args() {
             let offset = stack_slot_offsets.get(arg).unwrap();
@@ -99,12 +100,19 @@ impl Asm {
                 self.instructions
                     .push(Instruction::str(arg_reg, Register::sp(), *offset));
             } else {
+                while (stack_size + additional_args_offset) % arg.size().in_bytes() != 0 {
+                    additional_args_offset += 1;
+                }
+
                 self.instructions.push(Instruction::ldr(
                     Register::r9(arg.size()),
                     Register::sp(),
-                    stack_size + ((arg_num as u16 - 8) * arg.size().in_bytes()), // TODO: Update according to func_is_leaf
+                    stack_size + additional_args_offset, // TODO: Update according to func_is_leaf
                     arg.is_signed(),
                 ));
+
+                additional_args_offset += arg.size().in_bytes();
+
                 self.instructions.push(Instruction::str(
                     Register::r9(arg.size()),
                     Register::sp(),
@@ -201,6 +209,7 @@ impl Asm {
                         let inst = Instruction::mov(arg_reg, *value_reg);
                         self.instructions.push(inst);
                     } else {
+                        // (arg_num - 8)
                         unimplemented!()
                     }
 

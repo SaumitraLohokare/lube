@@ -64,7 +64,7 @@ fn main() -> io::Result<()> {
 
     /*
 
-        void why_would_you_do_this(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j)
+        void why_would_you_do_this(short a, int b, long c, short d, int e, long f, short g, int h, long i, short j)
         {
         }
 
@@ -79,17 +79,17 @@ fn main() -> io::Result<()> {
 
     let mut func = Function::new("_why_would_you_do_this".to_string());
 
+    func.add_arg(Size::Word, true);
     func.add_arg(Size::DoubleWord, true);
+    func.add_arg(Size::QuadWord, true);
+    func.add_arg(Size::Word, true);
     func.add_arg(Size::DoubleWord, true);
+    func.add_arg(Size::QuadWord, true);
+    func.add_arg(Size::Word, true);
     func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-    func.add_arg(Size::DoubleWord, true);
-
+    func.add_arg(Size::QuadWord, true);
+    func.add_arg(Size::Word, true);
+    
     func.add_inst_return(None);
 
     module.add_func(func);
