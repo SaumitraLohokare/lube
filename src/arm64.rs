@@ -35,7 +35,7 @@ impl Asm {
             asm.generate_func_prologue(&func, &offsets);
 
             for inst in func.instructions() {
-                asm.add_inst(*inst, &reg_map, &offsets, return_label);
+                asm.add_inst(func.is_leaf(), inst, &reg_map, &offsets, return_label);
             }
 
             // func epilogue
@@ -69,15 +69,26 @@ impl Asm {
 
         // sub sp, stack size
         let stack_size = func.stack_size();
-        if stack_size != 0 {
+        let func_stack_size = stack_size + if !func.is_leaf() { 16 } else { 0 };
+
+        if func_stack_size != 0 {
             self.instructions.push(Instruction::sub_imm(
                 Register::sp(),
                 Register::sp(),
-                stack_size,
+                func_stack_size,
             ));
         }
 
-        // TODO: Store x29, x30 if needed
+        // Store x29, x30 if needed
+        if !func.is_leaf() {
+            // stp x29, x30, [sp, #16]
+            let inst = Instruction::stp(Register::x29(), Register::x30(), Register::sp(), 16);
+            self.instructions.push(inst);
+
+            // add x29, sp, stack size
+            let inst = Instruction::add_imm(Register::x29(), Register::sp(), 16);
+            self.instructions.push(inst);
+        }
 
         // Store args in stack slots
         let mut arg_num = 0;
@@ -88,15 +99,17 @@ impl Asm {
                 self.instructions
                     .push(Instruction::str(arg_reg, Register::sp(), *offset));
             } else {
-                self.instructions
-                    .push(Instruction::ldr(
-                        Register::r9(arg.size()), 
-                        Register::sp(), 
-                        stack_size + ((arg_num as u16 - 8) * arg.size().in_bytes()),
-                        arg.is_signed())
-                    );
-                self.instructions
-                    .push(Instruction::str(Register::r9(arg.size()), Register::sp(), *offset));
+                self.instructions.push(Instruction::ldr(
+                    Register::r9(arg.size()),
+                    Register::sp(),
+                    stack_size + ((arg_num as u16 - 8) * arg.size().in_bytes()), // TODO: Update according to func_is_leaf
+                    arg.is_signed(),
+                ));
+                self.instructions.push(Instruction::str(
+                    Register::r9(arg.size()),
+                    Register::sp(),
+                    *offset,
+                ));
             }
 
             arg_num += 1;
@@ -109,15 +122,21 @@ impl Asm {
 
         // add sp, stack size
         let stack_size = func.stack_size();
-        if stack_size != 0 {
+        let func_stack_size = stack_size + if !func.is_leaf() { 16 } else { 0 };
+        if func_stack_size != 0 {
             self.instructions.push(Instruction::add_imm(
                 Register::sp(),
                 Register::sp(),
-                stack_size,
+                func_stack_size,
             ));
         }
 
-        // TODO: Load x29, x30 if needed
+        // Load x29, x30 if needed
+        if !func.is_leaf() {
+            // ldp x29, x30, [sp, #16]
+            let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), 16);
+            self.instructions.push(inst);
+        }
 
         // ret
         self.instructions.push(Instruction::ret());
@@ -125,7 +144,8 @@ impl Asm {
 
     fn add_inst(
         &mut self,
-        inst: ir::Instruction,
+        func_is_leaf: bool,
+        inst: &ir::Instruction,
         reg_map: &HashMap<ir::Temporary, Register>,
         stack_slot_offsets: &HashMap<ir::StackSlot, u16>,
         return_label: ir::Label,
@@ -139,7 +159,9 @@ impl Asm {
             ir::Instruction::Load { dest, src } => {
                 let dest_reg = reg_map.get(&dest).unwrap();
                 let offset = stack_slot_offsets.get(&src).unwrap();
-                let inst = Instruction::ldr(*dest_reg, Register::sp(), *offset, src.is_signed());
+                let offset = get_correct_offset(func_is_leaf, *offset);
+
+                let inst = Instruction::ldr(*dest_reg, Register::sp(), offset, src.is_signed());
                 self.instructions.push(inst);
             }
             ir::Instruction::Add { dest, src_1, src_2 } => {
@@ -153,19 +175,47 @@ impl Asm {
             ir::Instruction::Return { src } => {
                 if let Some(src) = src {
                     let src_reg = reg_map.get(&src).unwrap();
-    
+
                     let inst = Instruction::mov(Register::r0(src_reg.size()), *src_reg);
                     self.instructions.push(inst);
                 }
 
-                let inst = Instruction::br(return_label);
+                let inst = Instruction::b(return_label);
                 self.instructions.push(inst);
             }
             ir::Instruction::Store { dest, src } => {
                 let src_reg = reg_map.get(&src).unwrap();
-                let offset  = stack_slot_offsets.get(&dest).unwrap();
+                let offset = stack_slot_offsets.get(&dest).unwrap();
+                let offset = get_correct_offset(func_is_leaf, *offset);
 
-                let inst = Instruction::str(*src_reg, Register::sp(), *offset);
+                let inst = Instruction::str(*src_reg, Register::sp(), offset);
+                self.instructions.push(inst);
+            }
+            ir::Instruction::Call { func, args } => {
+                // Store args in correct registers/stack
+                let mut arg_num = 0;
+                #[allow(clippy::explicit_counter_loop)]
+                for arg in args {
+                    let value_reg = reg_map.get(arg).unwrap();
+                    if let Some(arg_reg) = arg_register(arg_num, arg.size()) {
+                        let inst = Instruction::mov(arg_reg, *value_reg);
+                        self.instructions.push(inst);
+                    } else {
+                        unimplemented!()
+                    }
+
+                    arg_num += 1;
+                }
+
+                // Call func
+                let inst = Instruction::bl(func.clone());
+                self.instructions.push(inst);
+            }
+            ir::Instruction::CallResult { dest } => {
+                let dest_reg = reg_map.get(&dest).unwrap();
+
+                // mov dest_reg, x0
+                let inst = Instruction::mov(*dest_reg, Register::r0(dest_reg.size()));
                 self.instructions.push(inst);
             }
         }
@@ -225,13 +275,28 @@ enum Instruction {
         offset: u16,
         signed: bool,
     },
+    Ldp {
+        dest_1: Register,
+        dest_2: Register,
+        addr: Register,
+        offset: u16,
+    },
     Str {
         src: Register,
         addr: Register,
         offset: u16,
     },
+    Stp {
+        src_1: Register,
+        src_2: Register,
+        addr: Register,
+        offset: u16,
+    },
     Br {
         label: ir::Label,
+    },
+    Bl {
+        func: String,
     },
     Ret,
 }
@@ -252,26 +317,38 @@ impl Instruction {
         let imm = (value & flag_16) as u16;
         asm.push(Instruction::MovImm { dest, imm });
 
-        if value >> 16 == 0 {
+        if value >> 16 == 0 || dest.size() == Size::Byte || dest.size() == Size::Word {
             return asm;
         }
 
         let imm = ((value & flag_32) >> 16) as u16;
-        asm.push(Instruction::MovKImm { dest, imm, offset: 16 });
+        asm.push(Instruction::MovKImm {
+            dest,
+            imm,
+            offset: 16,
+        });
 
-        if value >> 32 == 0 {
+        if value >> 32 == 0 || dest.size() == Size::DoubleWord {
             return asm;
         }
 
         let imm = ((value & flag_48) >> 32) as u16;
-        asm.push(Instruction::MovKImm { dest, imm, offset: 32 });
+        asm.push(Instruction::MovKImm {
+            dest,
+            imm,
+            offset: 32,
+        });
 
         if value >> 48 == 0 {
             return asm;
         }
 
         let imm = ((value & flag_64) >> 48) as u16;
-        asm.push(Instruction::MovKImm { dest, imm, offset: 48 });
+        asm.push(Instruction::MovKImm {
+            dest,
+            imm,
+            offset: 48,
+        });
 
         asm
     }
@@ -285,15 +362,42 @@ impl Instruction {
     }
 
     fn ldr(dest: Register, addr: Register, offset: u16, signed: bool) -> Self {
-        Self::Ldr { dest, addr, offset, signed }
+        Self::Ldr {
+            dest,
+            addr,
+            offset,
+            signed,
+        }
+    }
+
+    fn ldp(dest_1: Register, dest_2: Register, addr: Register, offset: u16) -> Self {
+        Self::Ldp {
+            dest_1,
+            dest_2,
+            addr,
+            offset,
+        }
     }
 
     fn str(src: Register, addr: Register, offset: u16) -> Self {
         Self::Str { src, addr, offset }
     }
 
-    fn br(label: ir::Label) -> Self {
+    fn stp(src_1: Register, src_2: Register, addr: Register, offset: u16) -> Self {
+        Self::Stp {
+            src_1,
+            src_2,
+            addr,
+            offset,
+        }
+    }
+
+    fn b(label: ir::Label) -> Self {
         Self::Br { label }
+    }
+
+    fn bl(func: String) -> Self {
+        Self::Bl { func }
     }
 
     fn sub_imm(dest: Register, src_1: Register, src_2: u16) -> Self {
@@ -332,7 +436,10 @@ impl fmt::Display for Instruction {
             Instruction::Add { dest, src_1, src_2 }     => write!(f, "    add {dest}, {src_1}, {src_2}"),
             Instruction::AddImm { dest, src_1, src_2 }  => write!(f, "    add {dest}, {src_1}, #{src_2}"),
             Instruction::SubImm { dest, src_1, src_2 }  => write!(f, "    sub {dest}, {src_1}, #{src_2}"),
-            Instruction::Ldr { dest, addr, offset, signed }     => {
+            Instruction::Br { label }                   => write!(f, "    b label_{}", label.id()),
+            Instruction::Bl { func }                    => write!(f, "    bl {func}"),
+            Instruction::Ret                            => write!(f, "    ret"),
+            Instruction::Ldr { dest, addr, offset, signed } => {
                 match dest.size() {
                     Size::Byte       => write!(f, "    ldr{}b {dest}, ", if *signed { "s" } else { "" }),
                     Size::Word       => write!(f, "    ldr{}h {dest}, ", if *signed { "s" } else { "" }),
@@ -346,7 +453,16 @@ impl fmt::Display for Instruction {
                     write!(f, "[{addr}]")
                 }
             }
-            Instruction::Str { src, addr, offset }      => {
+            Instruction::Ldp { dest_1, dest_2, addr, offset } => {
+                write!(f, "    ldp {dest_1}, {dest_2}, ")?;
+
+                if *offset != 0 {
+                    write!(f, "[{addr}, #{offset}]")
+                } else {
+                    write!(f, "[{addr}]")
+                }
+            }
+            Instruction::Str { src, addr, offset } => {
                 match src.size() {
                     Size::Byte       => write!(f, "    strb {src}, "),
                     Size::Word       => write!(f, "    strh {src}, "),
@@ -360,9 +476,15 @@ impl fmt::Display for Instruction {
                     write!(f, "[{addr}]")
                 }
             }
-                
-            Instruction::Br { label }                   => write!(f, "    b label_{}", label.id()),
-            Instruction::Ret                            => write!(f, "    ret"),
+            Instruction::Stp { src_1, src_2, addr, offset } => {
+                write!(f, "    stp {src_1}, {src_2}, ")?;
+
+                if *offset != 0 {
+                    write!(f, "[{addr}, #{offset}]")
+                } else {
+                    write!(f, "[{addr}]")
+                }
+            }
         }
     }
 }
@@ -388,6 +510,14 @@ impl Register {
 
     fn sp() -> Self {
         Self::new(RegisterNumber::SP, Size::QuadWord)
+    }
+
+    fn x29() -> Self {
+        Self::new(RegisterNumber::R29, Size::QuadWord)
+    }
+
+    fn x30() -> Self {
+        Self::new(RegisterNumber::R30, Size::QuadWord)
     }
 
     fn r0(size: Size) -> Self {
@@ -472,5 +602,14 @@ fn arg_register(arg_num: u8, size: Size) -> Option<Register> {
         6 => Some(Register::r6(size)),
         7 => Some(Register::r7(size)),
         _ => None,
+    }
+}
+
+fn get_correct_offset(is_leaf: bool, offset: u16) -> u16 {
+    // NOTE: Write propper tests to check this
+    if !is_leaf {
+        offset // + 16
+    } else {
+        offset
     }
 }

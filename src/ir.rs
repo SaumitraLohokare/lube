@@ -36,6 +36,7 @@ impl Module {
 #[derive(Clone)]
 pub struct Function {
     is_public: bool,
+    is_leaf: bool,
     name: String,
     tmp_iota: Iota,
     var_iota: Iota,
@@ -48,6 +49,7 @@ impl Function {
     pub fn new(name: String) -> Self {
         Self {
             is_public: false,
+            is_leaf: true,
             name,
             tmp_iota: Iota::new(),
             var_iota: Iota::new(),
@@ -63,6 +65,10 @@ impl Function {
 
     pub(crate) fn is_public(&self) -> bool {
         self.is_public
+    }
+
+    pub(crate) fn is_leaf(&self) -> bool {
+        self.is_leaf
     }
 
     pub(crate) fn name(&self) -> &str {
@@ -147,7 +153,32 @@ impl Function {
         result
     }
 
+    pub fn add_inst_call(
+        &mut self,
+        func: String,
+        args: Vec<Temporary>,
+    ) {
+        self.is_leaf = false;
+        
+        let inst = Instruction::Call { func, args };
+        self.instructions.push(inst);
+    }
+
+    pub fn add_inst_call_result(&mut self, size: Size, signed: bool) -> Temporary {
+        let result = Temporary::new(
+            self.tmp_iota.next(),
+            size,
+            signed,
+        );
+
+        let inst = Instruction::CallResult { dest: result };
+        self.instructions.push(inst);
+
+        result
+    }
+
     pub(crate) fn generate_stack_slot_offsets(&self) -> HashMap<StackSlot, u16> {
+        // TODO: C gives an extra 4 byte gap before variables... why?
         let mut stack_slot_offsets = HashMap::new();
         let mut current_offset = self.stack_size();
 
@@ -276,13 +307,15 @@ impl Value {
 }
 
 #[rustfmt::skip]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum Instruction {
-    Set    { dest: Temporary, src: Value },
-    Return { src: Option<Temporary> },
-    Load   { dest: Temporary, src: StackSlot },
-    Store  { dest: StackSlot, src: Temporary },
-    Add    { dest: Temporary, src_1: Temporary, src_2: Temporary },
+    Set        { dest: Temporary, src: Value },
+    Return     { src: Option<Temporary> },
+    Load       { dest: Temporary, src: StackSlot },
+    Store      { dest: StackSlot, src: Temporary },
+    Add        { dest: Temporary, src_1: Temporary, src_2: Temporary },
+    Call       { func: String, args: Vec<Temporary> },
+    CallResult { dest: Temporary },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
