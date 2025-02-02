@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    arm64::Asm,
-    util::Iota,
-};
+use crate::{arm64::Asm, util::Iota};
 
 pub struct Module {
     lbl_iota: Iota,
@@ -70,7 +67,7 @@ impl Function {
 
     pub(crate) fn name(&self) -> &str {
         &self.name
-    } 
+    }
 
     pub(crate) fn instructions(&self) -> &Vec<Instruction> {
         &self.instructions
@@ -80,8 +77,8 @@ impl Function {
         &self.args
     }
 
-    pub fn add_arg(&mut self, size: Size) -> StackSlot {
-        let slot = StackSlot::new(self.var_iota.next(), size);
+    pub fn add_arg(&mut self, size: Size, signed: bool) -> StackSlot {
+        let slot = StackSlot::new(self.var_iota.next(), size, signed);
         // NOTE: We are duplicating data... but whatever
         self.args.push(slot);
         self.stack_slots.push(slot);
@@ -89,7 +86,7 @@ impl Function {
     }
 
     pub fn add_inst_set(&mut self, value: Value) -> Temporary {
-        let result = Temporary::new(self.tmp_iota.next(), value.size());
+        let result = Temporary::new(self.tmp_iota.next(), value.size(), value.is_signed());
 
         let inst = Instruction::Set {
             dest: result,
@@ -106,7 +103,7 @@ impl Function {
     }
 
     pub fn add_inst_load(&mut self, slot: StackSlot) -> Temporary {
-        let result = Temporary::new(self.tmp_iota.next(), slot.size());
+        let result = Temporary::new(self.tmp_iota.next(), slot.size(), slot.is_signed());
 
         let inst = Instruction::Load {
             dest: result,
@@ -117,11 +114,28 @@ impl Function {
         result
     }
 
+    pub fn add_inst_store(&mut self, tmp: Temporary) -> StackSlot {
+        let slot = StackSlot::new(self.var_iota.next(), tmp.size(), tmp.is_signed());
+        self.stack_slots.push(slot);
+
+        let inst = Instruction::Store {
+            dest: slot,
+            src: tmp,
+        };
+        self.instructions.push(inst);
+
+        slot
+    }
+
     pub fn add_inst_add(&mut self, src_1: Temporary, src_2: Temporary) -> Temporary {
         // NOTE: For now assert their sizes are equal
         assert_eq!(src_1.size(), src_2.size());
 
-        let result = Temporary::new(self.tmp_iota.next(), src_1.size);
+        let result = Temporary::new(
+            self.tmp_iota.next(),
+            src_1.size(),
+            src_1.is_signed() | src_2.is_signed(),
+        );
 
         let inst = Instruction::Add {
             dest: result,
@@ -161,7 +175,7 @@ impl Function {
             while stack_size % slot_size != 0 {
                 stack_size += 1;
             }
-            
+
             stack_size += slot_size;
         }
 
@@ -169,7 +183,7 @@ impl Function {
         while stack_size % 16 != 0 {
             stack_size += 1;
         }
-        
+
         stack_size
     }
 }
@@ -178,15 +192,20 @@ impl Function {
 pub struct Temporary {
     id: usize,
     size: Size,
+    signed: bool,
 }
 
 impl Temporary {
-    fn new(id: usize, size: Size) -> Self {
-        Self { id, size }
+    fn new(id: usize, size: Size, signed: bool) -> Self {
+        Self { id, size, signed }
     }
 
     pub(crate) fn size(self) -> Size {
         self.size
+    }
+
+    fn is_signed(self) -> bool {
+        self.signed
     }
 }
 
@@ -247,30 +266,43 @@ impl Value {
             Value::I64(x) => x as u64,
         }
     }
+
+    fn is_signed(self) -> bool {
+        match self {
+            Value::U8(_) | Value::U16(_) | Value::U32(_) | Value::U64(_) => false,
+            Value::I8(_) | Value::I16(_) | Value::I32(_) | Value::I64(_) => true,
+        }
+    }
 }
 
 #[rustfmt::skip]
 #[derive(Clone, Copy)]
 pub(crate) enum Instruction {
-    Set { dest: Temporary, src: Value },
+    Set    { dest: Temporary, src: Value },
     Return { src: Option<Temporary> },
-    Load { dest: Temporary, src: StackSlot },
-    Add { dest: Temporary, src_1: Temporary, src_2: Temporary },
+    Load   { dest: Temporary, src: StackSlot },
+    Store  { dest: StackSlot, src: Temporary },
+    Add    { dest: Temporary, src_1: Temporary, src_2: Temporary },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StackSlot {
     id: usize,
     size: Size,
+    signed: bool,
 }
 
 impl StackSlot {
-    fn new(id: usize, size: Size) -> Self {
-        Self { id, size }
+    fn new(id: usize, size: Size, signed: bool) -> Self {
+        Self { id, size, signed }
     }
 
     pub(crate) fn size(self) -> Size {
         self.size
+    }
+
+    pub(crate) fn is_signed(self) -> bool {
+        self.signed
     }
 }
 

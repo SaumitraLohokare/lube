@@ -72,6 +72,9 @@ impl RegisterAllocator {
                     alive_set.insert(*src_2);
                     self.add_edge(*dest, &alive_set);
                 }
+                ir::Instruction::Store { src, .. } => {
+                    alive_set.insert(*src);
+                }
             }
         }
     }

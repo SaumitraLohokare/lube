@@ -40,6 +40,9 @@ impl Asm {
 
             // func epilogue
             asm.generate_func_epilogue(&func, return_label);
+
+            // Spacing between functions
+            asm.instructions.push(Instruction::Empty);
         }
 
         asm
@@ -81,18 +84,19 @@ impl Asm {
         #[allow(clippy::explicit_counter_loop)]
         for arg in func.args() {
             let offset = stack_slot_offsets.get(arg).unwrap();
-            if let Some(arg_reg) = arg_register(arg_num) {
+            if let Some(arg_reg) = arg_register(arg_num, arg.size()) {
                 self.instructions
                     .push(Instruction::str(arg_reg, Register::sp(), *offset));
             } else {
                 self.instructions
                     .push(Instruction::ldr(
-                        Register::x9(), 
+                        Register::r9(arg.size()), 
                         Register::sp(), 
-                        stack_size + ((arg_num as u16 - 8) * arg.size().in_bytes()))
+                        stack_size + ((arg_num as u16 - 8) * arg.size().in_bytes()),
+                        arg.is_signed())
                     );
                 self.instructions
-                    .push(Instruction::str(Register::x9(), Register::sp(), *offset));
+                    .push(Instruction::str(Register::r9(arg.size()), Register::sp(), *offset));
             }
 
             arg_num += 1;
@@ -135,7 +139,7 @@ impl Asm {
             ir::Instruction::Load { dest, src } => {
                 let dest_reg = reg_map.get(&dest).unwrap();
                 let offset = stack_slot_offsets.get(&src).unwrap();
-                let inst = Instruction::ldr(*dest_reg, Register::sp(), *offset);
+                let inst = Instruction::ldr(*dest_reg, Register::sp(), *offset, src.is_signed());
                 self.instructions.push(inst);
             }
             ir::Instruction::Add { dest, src_1, src_2 } => {
@@ -157,6 +161,13 @@ impl Asm {
                 let inst = Instruction::br(return_label);
                 self.instructions.push(inst);
             }
+            ir::Instruction::Store { dest, src } => {
+                let src_reg = reg_map.get(&src).unwrap();
+                let offset  = stack_slot_offsets.get(&dest).unwrap();
+
+                let inst = Instruction::str(*src_reg, Register::sp(), *offset);
+                self.instructions.push(inst);
+            }
         }
     }
 
@@ -172,6 +183,8 @@ impl Asm {
 }
 
 enum Instruction {
+    // Empty line in generated asm code
+    Empty,
     Custom {
         string: String,
     },
@@ -189,6 +202,7 @@ enum Instruction {
     MovKImm {
         dest: Register,
         imm: u16,
+        offset: u16,
     },
     Add {
         dest: Register,
@@ -209,6 +223,7 @@ enum Instruction {
         dest: Register,
         addr: Register,
         offset: u16,
+        signed: bool,
     },
     Str {
         src: Register,
@@ -242,21 +257,21 @@ impl Instruction {
         }
 
         let imm = ((value & flag_32) >> 16) as u16;
-        asm.push(Instruction::MovKImm { dest, imm });
+        asm.push(Instruction::MovKImm { dest, imm, offset: 16 });
 
         if value >> 32 == 0 {
             return asm;
         }
 
         let imm = ((value & flag_48) >> 32) as u16;
-        asm.push(Instruction::MovKImm { dest, imm });
+        asm.push(Instruction::MovKImm { dest, imm, offset: 32 });
 
         if value >> 48 == 0 {
             return asm;
         }
 
         let imm = ((value & flag_64) >> 48) as u16;
-        asm.push(Instruction::MovKImm { dest, imm });
+        asm.push(Instruction::MovKImm { dest, imm, offset: 48 });
 
         asm
     }
@@ -269,8 +284,8 @@ impl Instruction {
         Self::Add { dest, src_1, src_2 }
     }
 
-    fn ldr(dest: Register, addr: Register, offset: u16) -> Self {
-        Self::Ldr { dest, addr, offset }
+    fn ldr(dest: Register, addr: Register, offset: u16, signed: bool) -> Self {
+        Self::Ldr { dest, addr, offset, signed }
     }
 
     fn str(src: Register, addr: Register, offset: u16) -> Self {
@@ -308,26 +323,44 @@ impl fmt::Display for Instruction {
     #[rustfmt::skip]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Instruction::Empty                          => write!(f, ""),
             Instruction::Custom { string }              => write!(f, "{string}"),
             Instruction::Label { label }                => write!(f, "label_{}:", label.id()),
             Instruction::MovReg { dest, src }           => write!(f, "    mov {dest}, {src}"),
             Instruction::MovImm { dest, imm }           => write!(f, "    mov {dest}, #{imm}"),
-            Instruction::MovKImm { dest, imm }          => write!(f, "    movk {dest}, #{imm}"),
+            Instruction::MovKImm { dest, imm, offset }  => write!(f, "    movk {dest}, #{imm}, lsl #{offset}"),
             Instruction::Add { dest, src_1, src_2 }     => write!(f, "    add {dest}, {src_1}, {src_2}"),
             Instruction::AddImm { dest, src_1, src_2 }  => write!(f, "    add {dest}, {src_1}, #{src_2}"),
             Instruction::SubImm { dest, src_1, src_2 }  => write!(f, "    sub {dest}, {src_1}, #{src_2}"),
-            Instruction::Ldr { dest, addr, offset }     => 
+            Instruction::Ldr { dest, addr, offset, signed }     => {
+                match dest.size() {
+                    Size::Byte       => write!(f, "    ldr{}b {dest}, ", if *signed { "s" } else { "" }),
+                    Size::Word       => write!(f, "    ldr{}h {dest}, ", if *signed { "s" } else { "" }),
+                    Size::DoubleWord => write!(f, "    ldr{} {dest}, ", if *signed { "sw" } else { "" }),
+                    Size::QuadWord   => write!(f, "    ldr {dest}, "),
+                }?;
+
                 if *offset != 0 {
-                    write!(f, "    ldr {dest}, [{addr}, #{offset}]")
+                    write!(f, "[{addr}, #{offset}]")
                 } else {
-                    write!(f, "    ldr {dest}, [{addr}]")
+                    write!(f, "[{addr}]")
                 }
-            Instruction::Str { src, addr, offset }      => 
+            }
+            Instruction::Str { src, addr, offset }      => {
+                match src.size() {
+                    Size::Byte       => write!(f, "    strb {src}, "),
+                    Size::Word       => write!(f, "    strh {src}, "),
+                    Size::DoubleWord => write!(f, "    str {src}, "),
+                    Size::QuadWord   => write!(f, "    str {src}, "),
+                }?;
+
                 if *offset != 0 {
-                    write!(f, "    str {src}, [{addr}, #{offset}]")
+                    write!(f, "[{addr}, #{offset}]")
                 } else {
-                    write!(f, "    str {src}, [{addr}]")
+                    write!(f, "[{addr}]")
                 }
+            }
+                
             Instruction::Br { label }                   => write!(f, "    b label_{}", label.id()),
             Instruction::Ret                            => write!(f, "    ret"),
         }
@@ -359,42 +392,38 @@ impl Register {
 
     fn r0(size: Size) -> Self {
         Self::new(RegisterNumber::R0, size)
-    } 
-
-    fn x0() -> Self {
-        Self::new(RegisterNumber::R0, Size::QuadWord)
     }
 
-    fn x1() -> Self {
-        Self::new(RegisterNumber::R1, Size::QuadWord)
+    fn r1(size: Size) -> Self {
+        Self::new(RegisterNumber::R1, size)
     }
 
-    fn x2() -> Self {
-        Self::new(RegisterNumber::R2, Size::QuadWord)
+    fn r2(size: Size) -> Self {
+        Self::new(RegisterNumber::R2, size)
     }
 
-    fn x3() -> Self {
-        Self::new(RegisterNumber::R3, Size::QuadWord)
+    fn r3(size: Size) -> Self {
+        Self::new(RegisterNumber::R3, size)
     }
 
-    fn x4() -> Self {
-        Self::new(RegisterNumber::R4, Size::QuadWord)
+    fn r4(size: Size) -> Self {
+        Self::new(RegisterNumber::R4, size)
     }
 
-    fn x5() -> Self {
-        Self::new(RegisterNumber::R5, Size::QuadWord)
+    fn r5(size: Size) -> Self {
+        Self::new(RegisterNumber::R5, size)
     }
 
-    fn x6() -> Self {
-        Self::new(RegisterNumber::R6, Size::QuadWord)
+    fn r6(size: Size) -> Self {
+        Self::new(RegisterNumber::R6, size)
     }
 
-    fn x7() -> Self {
-        Self::new(RegisterNumber::R7, Size::QuadWord)
+    fn r7(size: Size) -> Self {
+        Self::new(RegisterNumber::R7, size)
     }
 
-    fn x9() -> Self {
-        Self::new(RegisterNumber::R9, Size::QuadWord)
+    fn r9(size: Size) -> Self {
+        Self::new(RegisterNumber::R9, size)
     }
 }
 
@@ -426,22 +455,22 @@ pub(crate) enum RegisterNumber {
 pub(crate) fn usable_registers() -> Vec<RegisterNumber> {
     use RegisterNumber::*;
     vec![
-        R9,  R10, R11, R12, R13, R14, 
-        R15, R19, R20, R21, R22, R23, 
-        R24, R25, R26, R27, R28
+        R8,  R9,  R10, R11, R12, R13, 
+        R14, R15, R19, R20, R21, R22, 
+        R23, R24, R25, R26, R27, R28
     ]
 }
 
-fn arg_register(arg_num: u8) -> Option<Register> {
+fn arg_register(arg_num: u8, size: Size) -> Option<Register> {
     match arg_num {
-        0 => Some(Register::x0()),
-        1 => Some(Register::x1()),
-        2 => Some(Register::x2()),
-        3 => Some(Register::x3()),
-        4 => Some(Register::x4()),
-        5 => Some(Register::x5()),
-        6 => Some(Register::x6()),
-        7 => Some(Register::x7()),
+        0 => Some(Register::r0(size)),
+        1 => Some(Register::r1(size)),
+        2 => Some(Register::r2(size)),
+        3 => Some(Register::r3(size)),
+        4 => Some(Register::r4(size)),
+        5 => Some(Register::r5(size)),
+        6 => Some(Register::r6(size)),
+        7 => Some(Register::r7(size)),
         _ => None,
     }
 }
