@@ -107,7 +107,7 @@ impl Asm {
                 self.instructions.push(Instruction::ldr(
                     Register::r9(arg.size()),
                     Register::sp(),
-                    stack_size + additional_args_offset, // TODO: Update according to func_is_leaf
+                    func_stack_size + additional_args_offset, // TODO: Update according to func_is_leaf
                     arg.is_signed(),
                 ));
 
@@ -131,6 +131,7 @@ impl Asm {
         // Load x29, x30 if needed
         if !func.is_leaf() {
             // ldp x29, x30, [sp, #16]
+            // TODO: calculate correct location to store x29 x30
             let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), 16);
             self.instructions.push(inst);
         }
