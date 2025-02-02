@@ -120,6 +120,13 @@ impl Asm {
         // return_label:
         self.instructions.push(Instruction::label(return_label));
 
+        // Load x29, x30 if needed
+        if !func.is_leaf() {
+            // ldp x29, x30, [sp, #16]
+            let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), 16);
+            self.instructions.push(inst);
+        }
+
         // add sp, stack size
         let stack_size = func.stack_size();
         let func_stack_size = stack_size + if !func.is_leaf() { 16 } else { 0 };
@@ -129,13 +136,6 @@ impl Asm {
                 Register::sp(),
                 func_stack_size,
             ));
-        }
-
-        // Load x29, x30 if needed
-        if !func.is_leaf() {
-            // ldp x29, x30, [sp, #16]
-            let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), 16);
-            self.instructions.push(inst);
         }
 
         // ret
