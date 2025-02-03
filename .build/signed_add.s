@@ -8,8 +8,7 @@ _signed_add:
     ldrsh w8, [sp, #12]
     add w10, w9, w8
     strh w10, [sp, #10]
-    ldrsh w8, [sp, #10]
-    mov w0, w8
+    ldrsh w0, [sp, #10]
     b label_0
 label_0:
     add sp, sp, #16

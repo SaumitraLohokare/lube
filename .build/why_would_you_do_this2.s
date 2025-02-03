@@ -23,29 +23,20 @@ _main:
     sub sp, sp, #16
     stp x29, x30, [sp]
     add x29, sp, #16
-    mov w12, #0
-    mov w9, #1
-    mov w8, #2
-    mov w14, #3
-    mov w15, #4
-    mov w11, #5
-    mov w10, #6
-    mov w13, #7
-    mov w19, #8
-    mov w20, #9
-    mov w0, w12
-    mov w1, w9
-    mov w2, w8
-    mov w3, w14
-    mov w4, w15
-    mov w5, w11
-    mov w6, w10
-    mov w7, w13
-    str w19, [sp]
-    str w20, [sp, #4]
+    mov w0, #0
+    mov w1, #1
+    mov w2, #2
+    mov w3, #3
+    mov w4, #4
+    mov w5, #5
+    mov w6, #6
+    mov w7, #7
+    mov w9, #8
+    mov w8, #9
+    str w9, [sp]
+    str w8, [sp, #4]
     bl _why_would_you_do_this
-    mov w8, #0
-    mov w0, w8
+    mov w0, #0
     b label_1
 label_1:
     ldp x29, x30, [sp]
