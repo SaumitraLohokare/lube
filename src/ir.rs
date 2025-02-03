@@ -24,12 +24,8 @@ impl Module {
         Asm::from_module(self)
     }
 
-    pub(crate) fn funcs_cloned(&self) -> Vec<Function> {
-        self.funcs.clone()
-    }
-
-    pub(crate) fn next_label(&mut self) -> Label {
-        Label::new(self.lbl_iota.next())
+    pub(crate) fn funcs(&self) -> &[Function] {
+        &self.funcs
     }
 }
 

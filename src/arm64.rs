@@ -7,29 +7,31 @@ use std::{
 
 use crate::{
     ir::{self, Size},
-    util::RegisterAllocator,
+    util::{Iota, RegisterAllocator},
 };
 
 pub struct Asm {
     instructions: Vec<Instruction>,
+    lbl_iota: Iota,
 }
 
 impl Asm {
     pub(crate) fn new() -> Self {
         Self {
             instructions: Vec::new(),
+            lbl_iota: Iota::new(),
         }
     }
 
     pub(crate) fn from_module(module: &mut ir::Module) -> Self {
         let mut asm = Self::new();
 
-        for func in module.funcs_cloned() {
+        for func in module.funcs() {
             let reg_map =
                 RegisterAllocator::new().allocate(func.instructions(), usable_registers());
 
             let offsets = func.generate_stack_slot_offsets();
-            let return_label = module.next_label();
+            let return_label = Label::new(asm.lbl_iota.next());
 
             // func prologue
             asm.generate_func_prologue(&func, &offsets);
@@ -124,7 +126,7 @@ impl Asm {
         }
     }
 
-    fn generate_func_epilogue(&mut self, func: &ir::Function, return_label: ir::Label) {
+    fn generate_func_epilogue(&mut self, func: &ir::Function, return_label: Label) {
         let stack_size = func.stack_size();
         
         // return_label:
@@ -158,7 +160,7 @@ impl Asm {
         inst: &ir::Instruction,
         reg_map: &HashMap<ir::Temporary, Register>,
         stack_slot_offsets: &HashMap<ir::StackSlot, u16>,
-        return_label: ir::Label,
+        return_label: Label,
     ) {
         match inst {
             ir::Instruction::Set { dest, src } => {
@@ -245,6 +247,21 @@ impl Asm {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Label {
+    id: usize,
+}
+
+impl Label {
+    fn new(id: usize) -> Self {
+        Self { id }
+    }
+
+    fn id(self) -> usize {
+        self.id
+    }
+}
+
 enum Instruction {
     // Empty line in generated asm code
     Empty,
@@ -252,7 +269,7 @@ enum Instruction {
         string: String,
     },
     Label {
-        label: ir::Label,
+        label: Label,
     },
     MovReg {
         dest: Register,
@@ -306,7 +323,7 @@ enum Instruction {
         offset: u16,
     },
     Br {
-        label: ir::Label,
+        label: Label,
     },
     Bl {
         func: String,
@@ -405,7 +422,7 @@ impl Instruction {
         }
     }
 
-    fn b(label: ir::Label) -> Self {
+    fn b(label: Label) -> Self {
         Self::Br { label }
     }
 
@@ -427,7 +444,7 @@ impl Instruction {
         Self::AddImm { dest, src_1, src_2 }
     }
 
-    fn label(label: ir::Label) -> Self {
+    fn label(label: Label) -> Self {
         Self::Label { label }
     }
 
