@@ -6,4 +6,4 @@ _deepThink:
 label_0:
     ret
 
-.data
+

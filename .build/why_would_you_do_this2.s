@@ -18,6 +18,7 @@ label_0:
     add sp, sp, #48
     ret
 
+
 .align 2
 _main:
     sub sp, sp, #16
@@ -43,4 +44,4 @@ label_1:
     add sp, sp, #16
     ret
 
-.data
+

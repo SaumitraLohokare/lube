@@ -12,6 +12,7 @@ label_0:
     add sp, sp, #16
     ret
 
+
 .global _main
 .align 2
 _main:
@@ -32,4 +33,4 @@ label_1:
     add sp, sp, #32
     ret
 
-.data
+
