@@ -4,9 +4,9 @@ _signed_add:
     sub sp, sp, #16
     strh w0, [sp, #14]
     strh w1, [sp, #12]
-    ldrsh w9, [sp, #14]
-    ldrsh w8, [sp, #12]
-    add w10, w9, w8
+    ldrsh w8, [sp, #14]
+    ldrsh w9, [sp, #12]
+    add w10, w8, w9
     strh w10, [sp, #10]
     ldrsh w0, [sp, #10]
     b label_0
