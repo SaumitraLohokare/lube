@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    ir::{self, Size},
+    ir::{self, DataAddr, Size},
     util::{Iota, RegisterAllocator},
 };
 
@@ -47,16 +47,20 @@ impl Asm {
             asm.instructions.push(Instruction::Empty);
         }
 
-        // Start Data section
-        asm.instructions.push(Instruction::DataSection);
+        let data = module.data();
 
-        for (addr, data) in module.data() {
-            asm.instructions.push(Instruction::data_label(addr.id()));
+        if data.len() != 0 {
+            // Start Data section
+            asm.instructions.push(Instruction::DataSection);
 
-            match data {
-                ir::Data::StringNullTerminated(value) => asm
-                    .instructions
-                    .push(Instruction::asciz_data(value.clone())),
+            for (addr, data) in data {
+                asm.instructions.push(Instruction::data_label(addr.id()));
+
+                match data {
+                    ir::Data::StringNullTerminated(value) => asm
+                        .instructions
+                        .push(Instruction::asciz_data(value.clone())),
+                }
             }
         }
 
@@ -167,6 +171,23 @@ impl Asm {
 
         // ret
         self.instructions.push(Instruction::ret());
+
+        // Empty Spacer
+        self.instructions.push(Instruction::Empty);
+
+        // Function local Data
+        for (addr, data) in func.data() {
+            self.instructions
+                .push(Instruction::locla_data_label(addr.id()));
+
+            match data {
+                ir::Data::StringNullTerminated(value) => {
+                    self.instructions.push(Instruction::AscizData {
+                        value: value.clone(),
+                    })
+                }
+            }
+        }
     }
 
     fn add_inst(
@@ -261,8 +282,16 @@ impl Asm {
             ir::Instruction::LoadAddr { dest, addr } => {
                 let dest_reg = reg_map.get(&dest).unwrap();
 
-                // mov dest_reg, =addr
+                // ldr dest_reg, addr@PAGE
+                // add dest_reg, dest_reg, addr@PAGEOFF
                 let inst = Instruction::ldr_addr(*dest_reg, *addr);
+                self.instructions.push(inst);
+            }
+            ir::Instruction::LoadLocalAddr { dest, addr } => {
+                let dest_reg = reg_map.get(&dest).unwrap();
+
+                // adr dest_reg, =addr
+                let inst = Instruction::adr(*dest_reg, *addr);
                 self.instructions.push(inst);
             }
         }
@@ -366,8 +395,15 @@ enum Instruction {
         func: String,
     },
     Ret,
+    Adr {
+        dest: Register,
+        addr: DataAddr,
+    },
 
     DataLabel {
+        id: usize,
+    },
+    LocalDataLabel {
         id: usize,
     },
     AscizData {
@@ -462,6 +498,10 @@ impl Instruction {
         Self::LdrAddr { dest, addr }
     }
 
+    fn adr(dest: Register, addr: ir::DataAddr) -> Self {
+        Self::Adr { dest, addr }
+    }
+
     fn str(src: Register, addr: Register, offset: u16) -> Self {
         Self::Str { src, addr, offset }
     }
@@ -501,6 +541,10 @@ impl Instruction {
         Self::DataLabel { id }
     }
 
+    fn locla_data_label(id: usize) -> Self {
+        Self::LocalDataLabel { id }
+    }
+
     fn asciz_data(value: String) -> Self {
         Self::AscizData { value }
     }
@@ -529,6 +573,7 @@ impl fmt::Display for Instruction {
             Instruction::SubImm { dest, src_1, src_2 }  => write!(f, "    sub {dest}, {src_1}, #{src_2}"),
             Instruction::Br { label }                   => write!(f, "    b label_{}", label.id()),
             Instruction::Bl { func }                    => write!(f, "    bl {func}"),
+            Instruction::Adr { dest, addr }             => write!(f, "    adr {dest}, local_data_{}", addr.id()),
             Instruction::Ret                            => write!(f, "    ret"),
             Instruction::LdrAddr { dest, addr }         => {
                 // NOTE: This is specific to Apple Sillicon I believe
@@ -584,6 +629,7 @@ impl fmt::Display for Instruction {
             }
 
             Instruction::DataLabel { id }               => write!(f, "data_{id}:"),
+            Instruction::LocalDataLabel { id }               => write!(f, "local_data_{id}:"),
             Instruction::AscizData { value }           => write!(f, "    .asciz {value:?}")
         }
     }

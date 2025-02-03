@@ -456,5 +456,42 @@ fn main() -> io::Result<()> {
 
     module.generate_asm().save_to(".build/hello_world.s")?;
 
+    /*
+    
+        int main() {
+            printf("Hello, World!\n");
+            return 0;
+        }
+
+        ==========
+
+        .data
+            @0 = StringNullTerminated "Hello, World!\n"
+
+        main:
+            %0 = @0
+            call printf %0
+            %1 = 0
+            return %1
+
+    
+    */
+
+    let mut module = Module::new();
+
+    
+    let mut func = Function::new("_main".to_string());
+    func.make_public();
+    
+    let addr_0 = func.add_data(Data::StringNullTerminated("Hello, World!\n".to_string()));
+    let tmp_0 = func.add_inst_load_local_addr(addr_0);
+    func.add_inst_call("_printf".to_string(), vec![tmp_0]);
+    let tmp_1 = func.add_inst_set(Value::I32(0));
+    func.add_inst_return(Some(tmp_1));
+
+    module.add_func(func);
+
+    module.generate_asm().save_to(".build/hello_world.s")?;
+
     Ok(())
 }

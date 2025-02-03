@@ -48,9 +48,11 @@ pub struct Function {
     name: String,
     tmp_iota: Iota,
     var_iota: Iota,
+    data_iota: Iota,
     args: Vec<StackSlot>,
     stack_slots: Vec<StackSlot>,
     instructions: Vec<Instruction>,
+    data: HashMap<DataAddr, Data>,
 }
 
 impl Function {
@@ -61,10 +63,18 @@ impl Function {
             name,
             tmp_iota: Iota::new(),
             var_iota: Iota::new(),
+            data_iota: Iota::new(),
             args: Vec::new(),
             stack_slots: Vec::new(),
             instructions: Vec::new(),
+            data: HashMap::new(),
         }
+    }
+
+    pub fn add_data(&mut self, data: Data) -> DataAddr {
+        let addr = DataAddr::new(self.data_iota.next());
+        self.data.insert(addr, data);
+        addr
     }
 
     pub fn make_public(&mut self) {
@@ -89,6 +99,10 @@ impl Function {
 
     pub(crate) fn args(&self) -> &Vec<StackSlot> {
         &self.args
+    }
+
+    pub(crate) fn data(&self) -> &HashMap<DataAddr, Data> {
+        &self.data
     }
 
     pub fn add_arg(&mut self, size: Size, signed: bool) -> StackSlot {
@@ -193,6 +207,19 @@ impl Function {
         );
 
         let inst = Instruction::LoadAddr { dest: result, addr };
+        self.instructions.push(inst);
+
+        result
+    }
+
+    pub fn add_inst_load_local_addr(&mut self, addr: DataAddr) -> Temporary {
+        let result = Temporary::new(
+            self.tmp_iota.next(),
+            Size::QuadWord,
+            false,
+        );
+
+        let inst = Instruction::LoadLocalAddr { dest: result, addr };
         self.instructions.push(inst);
 
         result
@@ -330,14 +357,15 @@ impl Value {
 #[rustfmt::skip]
 #[derive(Clone)]
 pub(crate) enum Instruction {
-    Set        { dest: Temporary, src: Value },
-    Return     { src: Option<Temporary> },
-    Load       { dest: Temporary, src: StackSlot },
-    LoadAddr   { dest: Temporary, addr: DataAddr },
-    Store      { dest: StackSlot, src: Temporary },
-    Add        { dest: Temporary, src_1: Temporary, src_2: Temporary },
-    Call       { func: String, args: Vec<Temporary> },
-    CallResult { dest: Temporary },
+    Set             { dest: Temporary, src: Value },
+    Return          { src: Option<Temporary> },
+    Load            { dest: Temporary, src: StackSlot },
+    LoadAddr        { dest: Temporary, addr: DataAddr },
+    LoadLocalAddr   { dest: Temporary, addr: DataAddr },
+    Store           { dest: StackSlot, src: Temporary },
+    Add             { dest: Temporary, src_1: Temporary, src_2: Temporary },
+    Call            { func: String, args: Vec<Temporary> },
+    CallResult      { dest: Temporary },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -361,6 +389,7 @@ impl StackSlot {
     }
 }
 
+#[derive(Clone)]
 pub enum Data {
     StringNullTerminated(String),
 }
