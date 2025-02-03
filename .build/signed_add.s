@@ -14,3 +14,4 @@ label_0:
     add sp, sp, #16
     ret
 
+.data

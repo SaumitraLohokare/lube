@@ -32,3 +32,4 @@ label_1:
     add sp, sp, #32
     ret
 
+.data

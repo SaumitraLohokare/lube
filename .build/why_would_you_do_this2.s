@@ -31,10 +31,10 @@ _main:
     mov w5, #5
     mov w6, #6
     mov w7, #7
-    mov w9, #8
-    mov w8, #9
-    str w9, [sp]
-    str w8, [sp, #4]
+    mov w8, #8
+    mov w9, #9
+    str w8, [sp]
+    str w9, [sp, #4]
     bl _why_would_you_do_this
     mov w0, #0
     b label_1
@@ -43,3 +43,4 @@ label_1:
     add sp, sp, #16
     ret
 
+.data
