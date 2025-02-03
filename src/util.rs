@@ -48,8 +48,9 @@ impl RegisterAllocator {
         }
     }
 
-    fn generate_edges(&mut self, ir: &[ir::Instruction]) {
+    fn generate_edges(&mut self, ir: &[ir::Instruction]) -> HashMap<ir::Temporary, arm64::Register> {
         let mut alive_set = HashSet::new();
+        let mut restricted_regs = HashMap::new();
 
         for inst in ir.iter().rev() {
             match inst {
@@ -60,6 +61,7 @@ impl RegisterAllocator {
                 ir::Instruction::Return { src } => {
                     if let Some(src) = src {
                         alive_set.insert(*src);
+                        restricted_regs.insert(*src, arm64::Register::r0(src.size()));
                     }
                 }
                 ir::Instruction::Load { dest, .. } => {
@@ -76,8 +78,11 @@ impl RegisterAllocator {
                     alive_set.insert(*src);
                 }
                 ir::Instruction::Call { args, .. } => {
-                    for arg in args {
+                    for (arg_num, arg) in args.iter().enumerate() {
                         alive_set.insert(*arg);
+                        if let Some(arg_reg) = arm64::arg_register(arg_num as u8, arg.size()) {
+                            restricted_regs.insert(*arg, arg_reg);
+                        }
                     }
                 }
                 ir::Instruction::CallResult { dest } => {
@@ -86,15 +91,37 @@ impl RegisterAllocator {
                 }
             }
         }
+
+        restricted_regs
     }
 
     fn allocate_registers(
         self,
         regs: Vec<arm64::RegisterNumber>,
+        restricted_regs: HashMap<ir::Temporary, arm64::Register>,
     ) -> HashMap<ir::Temporary, arm64::Register> {
         let mut reg_map: HashMap<ir::Temporary, arm64::Register> = HashMap::new();
 
         for (tmp, connected_tmps) in self.edges {
+            if let Some(restricted_reg) = restricted_regs.get(&tmp) {
+                // Check if we can assign the restricted register
+                let mut can_assign = true;
+                for connected_tmp in &connected_tmps {
+                    if let Some(allocated_reg) = reg_map.get(connected_tmp) {
+                        if allocated_reg.number() == restricted_reg.number() {
+                            can_assign = false;
+                            break;
+                        }
+                    }
+                }
+
+                // If we can assign, then assign and move on
+                if can_assign {
+                    reg_map.insert(tmp, *restricted_reg);
+                    continue;
+                }
+            }
+
             'outer: for reg in &regs {
                 for connected_tmp in &connected_tmps {
                     if let Some(allocated_reg) = reg_map.get(connected_tmp) {
@@ -107,6 +134,10 @@ impl RegisterAllocator {
                 reg_map.insert(tmp, Register::new(*reg, tmp.size()));
                 break;
             }
+
+            if !reg_map.contains_key(&tmp) {
+                panic!("Failed to allocate registers");
+            }
         }
 
         reg_map
@@ -117,8 +148,8 @@ impl RegisterAllocator {
         ir: &[ir::Instruction],
         regs: Vec<arm64::RegisterNumber>,
     ) -> HashMap<ir::Temporary, arm64::Register> {
-        self.generate_edges(ir);
+        let restricted_regs = self.generate_edges(ir);
 
-        self.allocate_registers(regs)
+        self.allocate_registers(regs, restricted_regs)
     }
 }

@@ -189,7 +189,10 @@ impl Asm {
                     let src_reg = reg_map.get(&src).unwrap();
 
                     let inst = Instruction::mov(Register::r0(src_reg.size()), *src_reg);
-                    self.instructions.push(inst);
+                    // Only add if it is not a NOP
+                    if let Some(inst) = inst {
+                        self.instructions.push(inst);
+                    }
                 }
 
                 let inst = Instruction::b(return_label);
@@ -212,7 +215,10 @@ impl Asm {
                     let value_reg = reg_map.get(arg).unwrap();
                     if let Some(arg_reg) = arg_register(arg_num, arg.size()) {
                         let inst = Instruction::mov(arg_reg, *value_reg);
-                        self.instructions.push(inst);
+                        // Only add if it is not a NOP
+                        if let Some(inst) = inst {
+                            self.instructions.push(inst);
+                        }
                     } else {
                         let inst = Instruction::str(*value_reg, Register::sp(), additional_args_offset);
                         self.instructions.push(inst);
@@ -231,7 +237,10 @@ impl Asm {
 
                 // mov dest_reg, x0
                 let inst = Instruction::mov(*dest_reg, Register::r0(dest_reg.size()));
-                self.instructions.push(inst);
+                // Only add if it is not a NOP
+                if let Some(inst) = inst {
+                    self.instructions.push(inst);
+                }
             }
         }
     }
@@ -383,8 +392,13 @@ impl Instruction {
         asm
     }
 
-    fn mov(dest: Register, src: Register) -> Self {
-        Self::MovReg { dest, src }
+    fn mov(dest: Register, src: Register) -> Option<Self> {
+        // No need to return the instruction if it is a NOP
+        if dest == src {
+            None
+        } else {
+            Some(Self::MovReg { dest, src })
+        }
     }
 
     fn add(dest: Register, src_1: Register, src_2: Register) -> Self {
@@ -550,7 +564,7 @@ impl Register {
         Self::new(RegisterNumber::R30, Size::QuadWord)
     }
 
-    fn r0(size: Size) -> Self {
+    pub(crate) fn r0(size: Size) -> Self {
         Self::new(RegisterNumber::R0, size)
     }
 
@@ -621,7 +635,7 @@ pub(crate) fn usable_registers() -> Vec<RegisterNumber> {
     ]
 }
 
-fn arg_register(arg_num: u8, size: Size) -> Option<Register> {
+pub(crate) fn arg_register(arg_num: u8, size: Size) -> Option<Register> {
     match arg_num {
         0 => Some(Register::r0(size)),
         1 => Some(Register::r1(size)),
