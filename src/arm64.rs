@@ -282,14 +282,6 @@ impl Asm {
             ir::Instruction::LoadAddr { dest, addr } => {
                 let dest_reg = reg_map.get(&dest).unwrap();
 
-                // ldr dest_reg, addr@PAGE
-                // add dest_reg, dest_reg, addr@PAGEOFF
-                let inst = Instruction::ldr_addr(*dest_reg, *addr);
-                self.instructions.push(inst);
-            }
-            ir::Instruction::LoadLocalAddr { dest, addr } => {
-                let dest_reg = reg_map.get(&dest).unwrap();
-
                 // adr dest_reg, =addr
                 let inst = Instruction::adr(*dest_reg, *addr);
                 self.instructions.push(inst);
@@ -372,10 +364,6 @@ enum Instruction {
         dest_2: Register,
         addr: Register,
         offset: u16,
-    },
-    LdrAddr {
-        dest: Register,
-        addr: ir::DataAddr,
     },
     Str {
         src: Register,
@@ -494,10 +482,6 @@ impl Instruction {
         }
     }
 
-    fn ldr_addr(dest: Register, addr: ir::DataAddr) -> Self {
-        Self::LdrAddr { dest, addr }
-    }
-
     fn adr(dest: Register, addr: ir::DataAddr) -> Self {
         Self::Adr { dest, addr }
     }
@@ -575,11 +559,6 @@ impl fmt::Display for Instruction {
             Instruction::Bl { func }                    => write!(f, "    bl {func}"),
             Instruction::Adr { dest, addr }             => write!(f, "    adr {dest}, local_data_{}", addr.id()),
             Instruction::Ret                            => write!(f, "    ret"),
-            Instruction::LdrAddr { dest, addr }         => {
-                // NOTE: This is specific to Apple Sillicon I believe
-                writeln!(f, "    adrp {dest}, data_{}@PAGE", addr.id())?;
-                write!(f, "    add {dest}, {dest}, data_{}@PAGEOFF", addr.id())
-            }
             Instruction::DataSection                    => write!(f, ".data"),
             Instruction::Ldr { dest, addr, offset, signed } => {
                 match dest.size() {

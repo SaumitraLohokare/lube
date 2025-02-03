@@ -199,7 +199,7 @@ impl Function {
         result
     }
 
-    pub fn add_inst_load_addr(&mut self, addr: DataAddr) -> Temporary {
+    pub fn add_inst_local_addr(&mut self, addr: DataAddr) -> Temporary {
         let result = Temporary::new(
             self.tmp_iota.next(),
             Size::QuadWord,
@@ -207,19 +207,6 @@ impl Function {
         );
 
         let inst = Instruction::LoadAddr { dest: result, addr };
-        self.instructions.push(inst);
-
-        result
-    }
-
-    pub fn add_inst_load_local_addr(&mut self, addr: DataAddr) -> Temporary {
-        let result = Temporary::new(
-            self.tmp_iota.next(),
-            Size::QuadWord,
-            false,
-        );
-
-        let inst = Instruction::LoadLocalAddr { dest: result, addr };
         self.instructions.push(inst);
 
         result
@@ -361,7 +348,6 @@ pub(crate) enum Instruction {
     Return          { src: Option<Temporary> },
     Load            { dest: Temporary, src: StackSlot },
     LoadAddr        { dest: Temporary, addr: DataAddr },
-    LoadLocalAddr   { dest: Temporary, addr: DataAddr },
     Store           { dest: StackSlot, src: Temporary },
     Add             { dest: Temporary, src_1: Temporary, src_2: Temporary },
     Call            { func: String, args: Vec<Temporary> },
