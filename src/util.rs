@@ -89,6 +89,10 @@ impl RegisterAllocator {
                     alive_set.remove(dest);
                     self.add_edge(*dest, &alive_set);
                 }
+                ir::Instruction::LoadAddr { dest, .. } => {
+                    alive_set.remove(dest);
+                    self.add_edge(*dest, &alive_set);
+                }
             }
         }
 

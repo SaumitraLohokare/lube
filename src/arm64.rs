@@ -47,6 +47,19 @@ impl Asm {
             asm.instructions.push(Instruction::Empty);
         }
 
+        // Start Data section
+        asm.instructions.push(Instruction::DataSection);
+
+        for (addr, data) in module.data() {
+            asm.instructions.push(Instruction::data_label(addr.id()));
+
+            match data {
+                ir::Data::StringNullTerminated(value) => asm
+                    .instructions
+                    .push(Instruction::asciz_data(value.clone())),
+            }
+        }
+
         asm
     }
 
@@ -84,7 +97,8 @@ impl Asm {
         // Store x29, x30 if needed
         if !func.is_leaf() {
             // stp x29, x30, [sp, stack size]
-            let inst = Instruction::stp(Register::x29(), Register::x30(), Register::sp(), stack_size);
+            let inst =
+                Instruction::stp(Register::x29(), Register::x30(), Register::sp(), stack_size);
             self.instructions.push(inst);
 
             // add x29, sp, stack size
@@ -128,14 +142,15 @@ impl Asm {
 
     fn generate_func_epilogue(&mut self, func: &ir::Function, return_label: Label) {
         let stack_size = func.stack_size();
-        
+
         // return_label:
         self.instructions.push(Instruction::label(return_label));
 
         // Load x29, x30 if needed
         if !func.is_leaf() {
             // ldp x29, x30, [sp, stack size]
-            let inst = Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), stack_size);
+            let inst =
+                Instruction::ldp(Register::x29(), Register::x30(), Register::sp(), stack_size);
             self.instructions.push(inst);
         }
 
@@ -220,7 +235,8 @@ impl Asm {
                             self.instructions.push(inst);
                         }
                     } else {
-                        let inst = Instruction::str(*value_reg, Register::sp(), additional_args_offset);
+                        let inst =
+                            Instruction::str(*value_reg, Register::sp(), additional_args_offset);
                         self.instructions.push(inst);
                         additional_args_offset += arg.size().in_bytes();
                     }
@@ -241,6 +257,13 @@ impl Asm {
                 if let Some(inst) = inst {
                     self.instructions.push(inst);
                 }
+            }
+            ir::Instruction::LoadAddr { dest, addr } => {
+                let dest_reg = reg_map.get(&dest).unwrap();
+
+                // mov dest_reg, =addr
+                let inst = Instruction::ldr_addr(*dest_reg, *addr);
+                self.instructions.push(inst);
             }
         }
     }
@@ -274,6 +297,7 @@ impl Label {
 enum Instruction {
     // Empty line in generated asm code
     Empty,
+    DataSection,
     Custom {
         string: String,
     },
@@ -320,6 +344,10 @@ enum Instruction {
         addr: Register,
         offset: u16,
     },
+    LdrAddr {
+        dest: Register,
+        addr: ir::DataAddr,
+    },
     Str {
         src: Register,
         addr: Register,
@@ -338,6 +366,13 @@ enum Instruction {
         func: String,
     },
     Ret,
+
+    DataLabel {
+        id: usize,
+    },
+    AscizData {
+        value: String,
+    },
 }
 
 impl Instruction {
@@ -423,6 +458,10 @@ impl Instruction {
         }
     }
 
+    fn ldr_addr(dest: Register, addr: ir::DataAddr) -> Self {
+        Self::LdrAddr { dest, addr }
+    }
+
     fn str(src: Register, addr: Register, offset: u16) -> Self {
         Self::Str { src, addr, offset }
     }
@@ -458,6 +497,14 @@ impl Instruction {
         Self::AddImm { dest, src_1, src_2 }
     }
 
+    fn data_label(id: usize) -> Self {
+        Self::DataLabel { id }
+    }
+
+    fn asciz_data(value: String) -> Self {
+        Self::AscizData { value }
+    }
+
     fn label(label: Label) -> Self {
         Self::Label { label }
     }
@@ -483,6 +530,12 @@ impl fmt::Display for Instruction {
             Instruction::Br { label }                   => write!(f, "    b label_{}", label.id()),
             Instruction::Bl { func }                    => write!(f, "    bl {func}"),
             Instruction::Ret                            => write!(f, "    ret"),
+            Instruction::LdrAddr { dest, addr }         => {
+                // NOTE: This is specific to Apple Sillicon I believe
+                writeln!(f, "    adrp {dest}, data_{}@PAGE", addr.id())?;
+                write!(f, "    add {dest}, {dest}, data_{}@PAGEOFF", addr.id())
+            }
+            Instruction::DataSection                    => write!(f, ".data"),
             Instruction::Ldr { dest, addr, offset, signed } => {
                 match dest.size() {
                     Size::Byte       => write!(f, "    ldr{}b {dest}, ", if *signed { "s" } else { "" }),
@@ -529,6 +582,9 @@ impl fmt::Display for Instruction {
                     write!(f, "[{addr}]")
                 }
             }
+
+            Instruction::DataLabel { id }               => write!(f, "data_{id}:"),
+            Instruction::AscizData { value }           => write!(f, "    .asciz {value:?}")
         }
     }
 }

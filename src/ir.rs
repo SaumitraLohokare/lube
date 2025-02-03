@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use crate::{arm64::Asm, util::Iota};
 
 pub struct Module {
-    lbl_iota: Iota,
+    data_iota: Iota,
     funcs: Vec<Function>,
+    data: HashMap<DataAddr, Data>,
 }
 
 impl Module {
@@ -12,12 +13,19 @@ impl Module {
     pub fn new() -> Self {
         Self {
             funcs: Vec::new(),
-            lbl_iota: Iota::new(),
+            data: HashMap::new(),
+            data_iota: Iota::new(),
         }
     }
 
     pub fn add_func(&mut self, func: Function) {
         self.funcs.push(func);
+    }
+
+    pub fn add_data(&mut self, data: Data) -> DataAddr {
+        let addr = DataAddr::new(self.data_iota.next());
+        self.data.insert(addr, data);
+        addr
     }
 
     pub fn generate_asm(&mut self) -> Asm {
@@ -26,6 +34,10 @@ impl Module {
 
     pub(crate) fn funcs(&self) -> &[Function] {
         &self.funcs
+    }
+
+    pub(crate) fn data(&self) -> &HashMap<DataAddr, Data> {
+        &self.data
     }
 }
 
@@ -173,6 +185,19 @@ impl Function {
         result
     }
 
+    pub fn add_inst_load_addr(&mut self, addr: DataAddr) -> Temporary {
+        let result = Temporary::new(
+            self.tmp_iota.next(),
+            Size::QuadWord,
+            false,
+        );
+
+        let inst = Instruction::LoadAddr { dest: result, addr };
+        self.instructions.push(inst);
+
+        result
+    }
+
     pub(crate) fn generate_stack_slot_offsets(&self) -> HashMap<StackSlot, u16> {
         // TODO: C gives an extra 4 byte gap before variables... why?
         let mut stack_slot_offsets = HashMap::new();
@@ -308,6 +333,7 @@ pub(crate) enum Instruction {
     Set        { dest: Temporary, src: Value },
     Return     { src: Option<Temporary> },
     Load       { dest: Temporary, src: StackSlot },
+    LoadAddr   { dest: Temporary, addr: DataAddr },
     Store      { dest: StackSlot, src: Temporary },
     Add        { dest: Temporary, src_1: Temporary, src_2: Temporary },
     Call       { func: String, args: Vec<Temporary> },
@@ -335,12 +361,16 @@ impl StackSlot {
     }
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct Label {
+pub enum Data {
+    StringNullTerminated(String),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DataAddr {
     id: usize,
 }
 
-impl Label {
+impl DataAddr {
     pub(crate) fn new(id: usize) -> Self {
         Self { id }
     }
@@ -349,3 +379,18 @@ impl Label {
         self.id
     }
 }
+
+// #[derive(Clone, Copy)]
+// pub(crate) struct Label {
+//     id: usize,
+// }
+
+// impl Label {
+//     pub(crate) fn new(id: usize) -> Self {
+//         Self { id }
+//     }
+
+//     pub(crate) fn id(&self) -> usize {
+//         self.id
+//     }
+// }
